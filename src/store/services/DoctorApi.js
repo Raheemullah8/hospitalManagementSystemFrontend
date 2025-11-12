@@ -4,7 +4,7 @@ export const DoctorApi = createApi({
     reducerPath: "DoctorApi",
     baseQuery: fetchBaseQuery({
         baseUrl: `${import.meta.env.VITE_API_BASE_URL}/doctors`,
-        credentials: "include",
+        
     }),
     
     tagTypes: ["Doctors"],
@@ -15,6 +15,7 @@ export const DoctorApi = createApi({
         getDoctorProfile: builder.query({
             query: () => "/profile",
             providesTags: ["Doctors"],
+            credentials: "include",
         }),
 
        
@@ -23,6 +24,7 @@ export const DoctorApi = createApi({
                 url: "/profile",
                 method: "PUT",
                 body: data,
+                
             }),
             // Invalidate the profile cache upon successful update
             invalidatesTags: ["Doctors"],
@@ -47,15 +49,7 @@ export const DoctorApi = createApi({
        
         getAllDoctors: builder.query({
             query: () => "/alldoctors",
-            providesTags: (result) => 
-                result 
-                    ? [
-                        // Tag for the entire list
-                        { type: 'DoctorList', id: 'LIST' },
-                        // Tag individual doctors by ID
-                        ...result.data.map(({ _id }) => ({ type: 'DoctorList', id: _id })),
-                      ]
-                    : [{ type: 'DoctorList', id: 'LIST' }],
+            providesTags: ["Doctors"],
         }),
        
 
