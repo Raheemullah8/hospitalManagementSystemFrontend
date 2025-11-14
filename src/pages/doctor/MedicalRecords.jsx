@@ -1,123 +1,48 @@
 import React, { useState, useEffect } from 'react';
+import { useGetDoctorMedicalRecordsQuery } from '../../store/services/MadcialRecod';
 
 const DoctorMedicalRecords = () => {
+  const { data: medicalQuery, isLoading: queryLoading, isError, error } = useGetDoctorMedicalRecordsQuery();
+  
   const [medicalRecords, setMedicalRecords] = useState([]);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(true);
 
-  // APIs simulation
+  // API se data fetch kar ke set karna
   useEffect(() => {
-    const fetchMedicalRecords = async () => {
-      try {
-        // API: GET /medical/doctor/my-records
-        // Response backend MedicalRecord model ke hisaab se
-        const mockRecords = [
-          {
-            _id: '1',
-            patientId: {
-              _id: 'patient123',
-              userId: {
-                name: 'John Smith',
-                gender: 'Male',
-                dateOfBirth: '1985-06-15'
-              }
-            },
-            appointmentId: {
-              _id: 'appointment123',
-              appointmentDate: '2024-01-10',
-              appointmentTime: '10:00 AM'
-            },
-            diagnosis: 'Hypertension Stage 1',
-            symptoms: ['Headache', 'Dizziness', 'High BP'],
-            prescription: [
-              { medicine: 'Lisinopril', dosage: '10mg', frequency: 'Once daily', duration: '30 days' },
-              { medicine: 'Amlodipine', dosage: '5mg', frequency: 'Once daily', duration: '30 days' }
-            ],
-            testsRecommended: ['Blood Pressure Monitoring', 'ECG', 'Blood Tests'],
-            notes: 'Patient advised to reduce salt intake and exercise regularly. Follow up in 4 weeks.',
-            createdAt: '2024-01-10T10:30:00Z'
-          },
-          {
-            _id: '2',
-            patientId: {
-              _id: 'patient124',
-              userId: {
-                name: 'Sarah Johnson',
-                gender: 'Female',
-                dateOfBirth: '1990-03-20'
-              }
-            },
-            appointmentId: {
-              _id: 'appointment124',
-              appointmentDate: '2024-01-08',
-              appointmentTime: '11:00 AM'
-            },
-            diagnosis: 'Type 2 Diabetes',
-            symptoms: ['Increased thirst', 'Frequent urination', 'Fatigue'],
-            prescription: [
-              { medicine: 'Metformin', dosage: '500mg', frequency: 'Twice daily', duration: '30 days' }
-            ],
-            testsRecommended: ['Blood Sugar Test', 'HbA1c'],
-            notes: 'Patient advised to monitor blood sugar levels regularly and follow diet plan.',
-            createdAt: '2024-01-08T11:30:00Z'
-          },
-          {
-            _id: '3',
-            patientId: {
-              _id: 'patient125',
-              userId: {
-                name: 'Mike Brown',
-                gender: 'Male',
-                dateOfBirth: '1978-11-08'
-              }
-            },
-            appointmentId: {
-              _id: 'appointment125',
-              appointmentDate: '2024-01-05',
-              appointmentTime: '02:30 PM'
-            },
-            diagnosis: 'Contact Dermatitis',
-            symptoms: ['Skin rash', 'Itching', 'Redness'],
-            prescription: [
-              { medicine: 'Hydrocortisone Cream', dosage: '1%', frequency: 'Twice daily', duration: '14 days' }
-            ],
-            testsRecommended: ['Patch Test'],
-            notes: 'Avoid suspected allergens. Use fragrance-free products.',
-            createdAt: '2024-01-05T15:00:00Z'
-          }
-        ];
-        setMedicalRecords(mockRecords);
-      } catch (error) {
-        console.error('Error fetching medical records:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMedicalRecords();
-  }, []);
+    if (medicalQuery?.success && medicalQuery?.data?.medicalRecords) {
+      setMedicalRecords(medicalQuery.data.medicalRecords);
+    }
+  }, [medicalQuery]);
 
   // Filter and search records
   const filteredRecords = medicalRecords.filter(record => {
-    const matchesSearch = record.patientId.userId.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         record.diagnosis.toLowerCase().includes(searchTerm.toLowerCase());
+    const patientName = record.patientId?.userId?.name || '';
+    const diagnosis = record.diagnosis || '';
+    
+    const matchesSearch = patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         diagnosis.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (filter === 'all') return matchesSearch;
     
     // Date filters
-    const recordDate = new Date(record.appointmentId.appointmentDate);
+    const recordDate = new Date(record.createdAt);
     const today = new Date();
-    const lastWeek = new Date(today.setDate(today.getDate() - 7));
+    today.setHours(0, 0, 0, 0);
     
     switch (filter) {
       case 'today':
-        return matchesSearch && recordDate.toDateString() === new Date().toDateString();
+        const recordDay = new Date(recordDate);
+        recordDay.setHours(0, 0, 0, 0);
+        return matchesSearch && recordDay.getTime() === today.getTime();
       case 'week':
+        const lastWeek = new Date(today);
+        lastWeek.setDate(lastWeek.getDate() - 7);
         return matchesSearch && recordDate >= lastWeek;
       case 'month':
-        const lastMonth = new Date(today.setMonth(today.getMonth() - 1));
+        const lastMonth = new Date(today);
+        lastMonth.setMonth(lastMonth.getMonth() - 1);
         return matchesSearch && recordDate >= lastMonth;
       default:
         return matchesSearch;
@@ -125,6 +50,7 @@ const DoctorMedicalRecords = () => {
   });
 
   const calculateAge = (dateOfBirth) => {
+    if (!dateOfBirth) return 'N/A';
     const today = new Date();
     const birthDate = new Date(dateOfBirth);
     let age = today.getFullYear() - birthDate.getFullYear();
@@ -136,6 +62,7 @@ const DoctorMedicalRecords = () => {
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -143,25 +70,16 @@ const DoctorMedicalRecords = () => {
     });
   };
 
-  const handleUpdateRecord = async (recordId, updatedData) => {
-    try {
-      // API: PUT /medical/:id
-      console.log('Updating medical record:', recordId, updatedData);
-      
-      // Update local state
-      setMedicalRecords(prev => prev.map(record =>
-        record._id === recordId ? { ...record, ...updatedData } : record
-      ));
-      
-      setSelectedRecord(null);
-      alert('Medical record updated successfully!');
-    } catch (error) {
-      console.error('Error updating medical record:', error);
-      alert('Error updating medical record');
-    }
+  const formatTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  if (loading) {
+  // Loading state
+  if (queryLoading) {
     return (
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
@@ -175,6 +93,20 @@ const DoctorMedicalRecords = () => {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (isError) {
+    return (
+      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="px-4 py-6 sm:px-0">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h3 className="text-red-800 font-semibold mb-2">Error loading medical records</h3>
+            <p className="text-red-600">{error?.data?.message || 'Something went wrong'}</p>
           </div>
         </div>
       </div>
@@ -198,21 +130,25 @@ const DoctorMedicalRecords = () => {
           </div>
           <div className="bg-white rounded-lg shadow p-4 text-center">
             <div className="text-2xl font-bold text-green-600 mb-1">
-              {new Set(medicalRecords.map(record => record.patientId._id)).size}
+              {new Set(medicalRecords.map(record => record.patientId?._id).filter(Boolean)).size}
             </div>
             <div className="text-gray-600 text-sm">Unique Patients</div>
           </div>
           <div className="bg-white rounded-lg shadow p-4 text-center">
             <div className="text-2xl font-bold text-purple-600 mb-1">
-              {medicalRecords.filter(record => record.testsRecommended.length > 0).length}
+              {medicalRecords.filter(record => record.testsRecommended && record.testsRecommended.length > 0).length}
             </div>
             <div className="text-gray-600 text-sm">With Tests</div>
           </div>
           <div className="bg-white rounded-lg shadow p-4 text-center">
             <div className="text-2xl font-bold text-orange-600 mb-1">
-              {medicalRecords.filter(record => 
-                new Date(record.appointmentId.appointmentDate).toDateString() === new Date().toDateString()
-              ).length}
+              {medicalRecords.filter(record => {
+                const recordDate = new Date(record.createdAt);
+                const today = new Date();
+                recordDate.setHours(0, 0, 0, 0);
+                today.setHours(0, 0, 0, 0);
+                return recordDate.getTime() === today.getTime();
+              }).length}
             </div>
             <div className="text-gray-600 text-sm">Today's Records</div>
           </div>
@@ -236,7 +172,7 @@ const DoctorMedicalRecords = () => {
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setFilter('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   filter === 'all' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -246,7 +182,7 @@ const DoctorMedicalRecords = () => {
               </button>
               <button
                 onClick={() => setFilter('today')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   filter === 'today' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -256,7 +192,7 @@ const DoctorMedicalRecords = () => {
               </button>
               <button
                 onClick={() => setFilter('week')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   filter === 'week' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -266,7 +202,7 @@ const DoctorMedicalRecords = () => {
               </button>
               <button
                 onClick={() => setFilter('month')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   filter === 'month' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -288,7 +224,7 @@ const DoctorMedicalRecords = () => {
                 </h2>
               </div>
               
-              <div className="divide-y divide-gray-200">
+              <div className="divide-y divide-gray-200 max-h-[calc(100vh-300px)] overflow-y-auto">
                 {filteredRecords.length === 0 ? (
                   <div className="p-8 text-center">
                     <div className="text-gray-400 text-6xl mb-4">📋</div>
@@ -306,28 +242,36 @@ const DoctorMedicalRecords = () => {
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div>
-                          <h3 className="font-semibold text-gray-900">{record.patientId.userId.name}</h3>
+                          <h3 className="font-semibold text-gray-900">
+                            {record.patientId?.userId?.name || 'Unknown Patient'}
+                          </h3>
                           <p className="text-sm text-gray-600">
-                            {calculateAge(record.patientId.userId.dateOfBirth)} years • {record.patientId.userId.gender}
+                            {calculateAge(record.patientId?.userId?.dateOfBirth)} years • {record.patientId?.userId?.gender || 'N/A'}
                           </p>
                         </div>
                         <span className="text-sm text-gray-500">
-                          {formatDate(record.appointmentId.appointmentDate)}
+                          {formatDate(record.createdAt)}
                         </span>
                       </div>
                       <p className="text-sm text-gray-700 mb-2">
-                        <span className="font-medium">Diagnosis:</span> {record.diagnosis}
+                        <span className="font-medium">Diagnosis:</span> {record.diagnosis || 'Not specified'}
                       </p>
                       <div className="flex flex-wrap gap-1">
-                        {record.symptoms.slice(0, 3).map((symptom, index) => (
-                          <span key={index} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">
-                            {symptom}
-                          </span>
-                        ))}
-                        {record.symptoms.length > 3 && (
-                          <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">
-                            +{record.symptoms.length - 3} more
-                          </span>
+                        {record.symptoms && record.symptoms.length > 0 ? (
+                          <>
+                            {record.symptoms.slice(0, 3).map((symptom, index) => (
+                              <span key={index} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">
+                                {symptom}
+                              </span>
+                            ))}
+                            {record.symptoms.length > 3 && (
+                              <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">
+                                +{record.symptoms.length - 3} more
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-xs text-gray-500">No symptoms recorded</span>
                         )}
                       </div>
                     </div>
@@ -346,19 +290,21 @@ const DoctorMedicalRecords = () => {
                 </h2>
               </div>
               
-              <div className="p-4">
+              <div className="p-4 max-h-[calc(100vh-200px)] overflow-y-auto">
                 {selectedRecord ? (
                   <div className="space-y-4">
                     {/* Patient Info */}
                     <div>
                       <h3 className="font-medium text-gray-900 mb-2">Patient Information</h3>
                       <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-sm font-medium text-gray-900">{selectedRecord.patientId.userId.name}</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {selectedRecord.patientId?.userId?.name || 'Unknown Patient'}
+                        </p>
                         <p className="text-sm text-gray-600">
-                          {calculateAge(selectedRecord.patientId.userId.dateOfBirth)} years • {selectedRecord.patientId.userId.gender}
+                          {calculateAge(selectedRecord.patientId?.userId?.dateOfBirth)} years • {selectedRecord.patientId?.userId?.gender || 'N/A'}
                         </p>
                         <p className="text-sm text-gray-500">
-                          Visit: {formatDate(selectedRecord.appointmentId.appointmentDate)} at {selectedRecord.appointmentId.appointmentTime}
+                          Created: {formatDate(selectedRecord.createdAt)} at {formatTime(selectedRecord.createdAt)}
                         </p>
                       </div>
                     </div>
@@ -367,39 +313,47 @@ const DoctorMedicalRecords = () => {
                     <div>
                       <h3 className="font-medium text-gray-900 mb-2">Diagnosis</h3>
                       <p className="text-sm text-gray-700 bg-blue-50 p-2 rounded">
-                        {selectedRecord.diagnosis}
+                        {selectedRecord.diagnosis || 'Not specified'}
                       </p>
                     </div>
 
                     {/* Symptoms */}
                     <div>
                       <h3 className="font-medium text-gray-900 mb-2">Symptoms</h3>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedRecord.symptoms.map((symptom, index) => (
-                          <span key={index} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">
-                            {symptom}
-                          </span>
-                        ))}
-                      </div>
+                      {selectedRecord.symptoms && selectedRecord.symptoms.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {selectedRecord.symptoms.map((symptom, index) => (
+                            <span key={index} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">
+                              {symptom}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No symptoms recorded</p>
+                      )}
                     </div>
 
                     {/* Prescription */}
                     <div>
                       <h3 className="font-medium text-gray-900 mb-2">Prescription</h3>
-                      <div className="space-y-2">
-                        {selectedRecord.prescription.map((med, index) => (
-                          <div key={index} className="bg-green-50 p-2 rounded text-sm">
-                            <div className="font-medium text-green-900">{med.medicine}</div>
-                            <div className="text-green-700">
-                              {med.dosage} • {med.frequency} • {med.duration}
+                      {selectedRecord.prescription && selectedRecord.prescription.length > 0 ? (
+                        <div className="space-y-2">
+                          {selectedRecord.prescription.map((med, index) => (
+                            <div key={index} className="bg-green-50 p-2 rounded text-sm">
+                              <div className="font-medium text-green-900">{med.medicine}</div>
+                              <div className="text-green-700">
+                                {med.dosage} • {med.frequency} • {med.duration}
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">No prescription given</p>
+                      )}
                     </div>
 
                     {/* Tests Recommended */}
-                    {selectedRecord.testsRecommended.length > 0 && (
+                    {selectedRecord.testsRecommended && selectedRecord.testsRecommended.length > 0 && (
                       <div>
                         <h3 className="font-medium text-gray-900 mb-2">Tests Recommended</h3>
                         <div className="flex flex-wrap gap-1">
@@ -422,18 +376,16 @@ const DoctorMedicalRecords = () => {
                       </div>
                     )}
 
-                    {/* Actions */}
-                    <div className="pt-4 border-t border-gray-200">
-                      <button
-                        onClick={() => {
-                          // Edit functionality implement karna hoga
-                          console.log('Edit record:', selectedRecord._id);
-                        }}
-                        className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition duration-200"
-                      >
-                        Edit Record
-                      </button>
-                    </div>
+                    {/* Appointment Details */}
+                    {selectedRecord.appointmentId && (
+                      <div className="pt-4 border-t border-gray-200">
+                        <h3 className="font-medium text-gray-900 mb-2">Appointment Details</h3>
+                        <div className="bg-gray-50 p-2 rounded text-sm text-gray-700">
+                          <p>Date: {formatDate(selectedRecord.appointmentId.appointmentDate)}</p>
+                          <p>Time: {selectedRecord.appointmentId.appointmentTime}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-8">

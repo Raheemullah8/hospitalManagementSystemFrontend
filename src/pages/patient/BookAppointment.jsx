@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
 import { useGetAllDoctorsQuery } from '../../store/services/DoctorApi';
 import { useGetAvailableSlotsQuery, useCreateAppointmentMutation } from '../../store/services/AppointmentApi';
 
@@ -7,23 +8,36 @@ const BookAppointment = () => {
   const { data: doctorsData, isLoading, isError } = useGetAllDoctorsQuery();
   const doctors = doctorsData?.data?.doctors || [];
 
-  const [selectedDoctor, setSelectedDoctor] = useState('');
-  const [selectedDate, setSelectedDate] = useState('');
-  const [selectedTime, setSelectedTime] = useState('');
-  const [reason, setReason] = useState('');
+  // RHF setup
+  const {
+    register,
+    handleSubmit,
+    watch,
+    reset,
+    formState: { errors },
+    setValue,
+  } = useForm({
+    defaultValues: {
+      doctorId: '',
+      appointmentDate: '',
+      timeSlot: '',
+      reason: '',
+    },
+  });
 
-  // Get selected doctor object
-  const currentDoctor = doctors.find(doc => doc._id === selectedDoctor);
+  const selectedDoctor = watch('doctorId');
+  const selectedDate = watch('appointmentDate');
+  const selectedTime = watch('timeSlot');
 
-  // Fetch available slots when doctor and date are selected
+  const currentDoctor = doctors.find((doc) => doc._id === selectedDoctor);
+
+  // Available slots API
   const { data: slotsData, isLoading: slotsLoading } = useGetAvailableSlotsQuery(
     { doctorId: selectedDoctor, date: selectedDate },
-    { skip: !selectedDoctor || !selectedDate } // Skip query if no doctor or date selected
+    { skip: !selectedDoctor || !selectedDate }
   );
 
   const availableTimeSlots = slotsData?.data?.availableSlots || [];
-  
-  console.log("Available Slots Data:", slotsData);
 
   // Create appointment mutation
   const [createAppointment, { isLoading: isBooking }] = useCreateAppointmentMutation();
@@ -31,51 +45,14 @@ const BookAppointment = () => {
   // Get available days for the selected doctor
   const availableDays = useMemo(() => {
     if (!currentDoctor) return [];
-    return currentDoctor.availableSlots
-      ?.filter(slot => slot.isAvailable)
-      .map(slot => slot.day) || [];
+    return (
+      currentDoctor.availableSlots
+        ?.filter((slot) => slot.isAvailable)
+        .map((slot) => slot.day) || []
+    );
   }, [currentDoctor]);
 
-  const handleDoctorChange = (e) => {
-    setSelectedDoctor(e.target.value);
-    setSelectedDate('');
-    setSelectedTime('');
-  };
-
-  const handleDateChange = (e) => {
-    setSelectedDate(e.target.value);
-    setSelectedTime('');
-  };
-
-  const handleBookAppointment = async (e) => {
-    e.preventDefault();
-    
-    try {
-      const appointmentData = {
-        doctorId: selectedDoctor,
-        appointmentDate: selectedDate,
-        timeSlot: selectedTime,
-        reason: reason
-      };
-
-      const result = await createAppointment(appointmentData).unwrap();
-      
-      console.log('Appointment booked:', result);
-      alert('Appointment booked successfully! ✅');
-      
-      // Reset form
-      setSelectedDoctor('');
-      setSelectedDate('');
-      setSelectedTime('');
-      setReason('');
-      
-    } catch (error) {
-      console.error('Booking error:', error);
-      alert(error?.data?.message || 'Failed to book appointment. Please try again.');
-    }
-  };
-
-  // Check if selected date is an available day
+  // Check if selected date is valid
   const isDateAvailable = (dateString) => {
     if (!dateString || !currentDoctor) return false;
     const date = new Date(dateString);
@@ -83,13 +60,29 @@ const BookAppointment = () => {
     return availableDays.includes(dayName);
   };
 
+  // Form Submit Handler
+  const onSubmit = async (data) => {
+    if (!isDateAvailable(data.appointmentDate)) {
+      alert('Doctor is not available on this selected day!');
+      return;
+    }
+
+    try {
+      const result = await createAppointment(data).unwrap();
+      console.log('Appointment booked:', result);
+      alert('Appointment booked successfully! ✅');
+      reset(); // reset RHF form
+    } catch (error) {
+      console.error('Booking error:', error);
+      alert(error?.data?.message || 'Failed to book appointment. Please try again.');
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Loading doctors...</p>
-        </div>
+      <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8 text-center">
+        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <p className="mt-4 text-gray-600">Loading doctors...</p>
       </div>
     );
   }
@@ -107,32 +100,37 @@ const BookAppointment = () => {
   return (
     <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
       <div className="px-4 py-6 sm:px-0">
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Book Appointment</h1>
           <p className="text-gray-600">Schedule your visit with our healthcare professionals</p>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <form onSubmit={handleBookAppointment}>
+          <form onSubmit={handleSubmit(onSubmit)}>
             {/* Doctor Selection */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Select Doctor *
               </label>
               <select
-                value={selectedDoctor}
-                onChange={handleDoctorChange}
+                {...register('doctorId', { required: 'Doctor selection is required' })}
+                onChange={(e) => {
+                  setValue('doctorId', e.target.value);
+                  setValue('appointmentDate', '');
+                  setValue('timeSlot', '');
+                }}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
               >
                 <option value="">Choose a doctor</option>
-                {doctors.map(doctor => (
+                {doctors.map((doctor) => (
                   <option key={doctor._id} value={doctor._id}>
                     {doctor.userId?.name} - {doctor.userId?.specialization}
                   </option>
                 ))}
               </select>
+              {errors.doctorId && (
+                <p className="text-sm text-red-600 mt-1">{errors.doctorId.message}</p>
+              )}
             </div>
 
             {/* Doctor Availability Info */}
@@ -141,9 +139,12 @@ const BookAppointment = () => {
                 <h3 className="font-semibold text-green-900 mb-3">✓ Doctor Availability Schedule</h3>
                 <div className="space-y-2">
                   {currentDoctor.availableSlots
-                    ?.filter(slot => slot.isAvailable)
+                    ?.filter((slot) => slot.isAvailable)
                     .map((slot, idx) => (
-                      <div key={idx} className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200">
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200"
+                      >
                         <span className="font-medium text-green-900">{slot.day}</span>
                         <span className="text-green-700 text-sm font-medium">
                           {slot.startTime} - {slot.endTime}
@@ -166,13 +167,18 @@ const BookAppointment = () => {
               </label>
               <input
                 type="date"
-                value={selectedDate}
-                onChange={handleDateChange}
+                {...register('appointmentDate', { required: 'Appointment date is required' })}
                 min={new Date().toISOString().split('T')[0]}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
                 disabled={!selectedDoctor}
+                onChange={(e) => {
+                  setValue('appointmentDate', e.target.value);
+                  setValue('timeSlot', '');
+                }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              {errors.appointmentDate && (
+                <p className="text-sm text-red-600 mt-1">{errors.appointmentDate.message}</p>
+              )}
               {selectedDate && !isDateAvailable(selectedDate) && (
                 <p className="mt-2 text-sm text-red-600">
                   ⚠️ Doctor is not available on this day. Please select another date.
@@ -186,7 +192,6 @@ const BookAppointment = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Available Time Slots *
                 </label>
-                
                 {slotsLoading ? (
                   <div className="text-center py-8">
                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -198,11 +203,11 @@ const BookAppointment = () => {
                       {availableTimeSlots.length} slots available
                     </p>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {availableTimeSlots.map(slot => (
+                      {availableTimeSlots.map((slot) => (
                         <button
                           key={slot}
                           type="button"
-                          onClick={() => setSelectedTime(slot)}
+                          onClick={() => setValue('timeSlot', slot)}
                           className={`p-3 border rounded-lg text-center transition duration-200 font-medium ${
                             selectedTime === slot
                               ? 'bg-blue-600 text-white border-blue-600 shadow-md'
@@ -213,10 +218,15 @@ const BookAppointment = () => {
                         </button>
                       ))}
                     </div>
+                    {errors.timeSlot && (
+                      <p className="text-sm text-red-600 mt-1">{errors.timeSlot.message}</p>
+                    )}
                   </>
                 ) : (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
-                    <p className="text-yellow-800">😔 No time slots available for this date. Please try another date.</p>
+                    <p className="text-yellow-800">
+                      😔 No time slots available for this date. Please try another date.
+                    </p>
                   </div>
                 )}
               </div>
@@ -228,20 +238,21 @@ const BookAppointment = () => {
                 Reason for Appointment *
               </label>
               <textarea
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
+                {...register('reason', { required: 'Reason is required' })}
                 placeholder="Describe your symptoms or reason for visit..."
                 rows="4"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
               />
+              {errors.reason && (
+                <p className="text-sm text-red-600 mt-1">{errors.reason.message}</p>
+              )}
             </div>
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 type="submit"
-                disabled={!selectedDoctor || !selectedDate || !selectedTime || !reason || isBooking}
+                disabled={isBooking}
                 className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition duration-200 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {isBooking ? (
