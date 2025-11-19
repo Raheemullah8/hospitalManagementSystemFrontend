@@ -1,30 +1,20 @@
+// src/pages/patient/PatientProfile.jsx
+
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { useGetUserQuery } from "../../store/services/AuthApi";
+
 import PersonalInfo from "../../components/PatientModal/PersonalInfo";
 import ProfileHeader from "../../components/PatientModal/ProfileHeader";
 import MedicalInfo from "../../components/PatientModal/MedicalInfo";
 import EmergencyContact from "../../components/PatientModal/EmergencyContact";
+import toast from "react-hot-toast";
+import { useGetPatientProfileQuery, useUpdatePatientProfileMutation } from "../../store/services/Patient";
 
 const PatientProfile = () => {
-  const { data: userData, isLoading, isError } = useGetUserQuery();
+  const { data: patientData, isLoading, isError, refetch } = useGetPatientProfileQuery();
+  const [updateProfile, { isLoading: isUpdating }] = useUpdatePatientProfileMutation();
   const [isEditing, setIsEditing] = useState(false);
-  
-;
-  console.log("User Data Structure:", userData?.data.user);
 
-  // ✅ Dummy Medical Data - kyunki user data mein medical fields nahi hain
-  const dummyMedicalData = {
-    bloodGroup: "A+",
-    allergies: ["Penicillin", "Dust", "Pollen"],
-    emergencyContact: {
-      name: "Jane Doe",
-      phone: "+1 (555) 987-6543",
-      relation: "Spouse"
-    }
-  };
-
-  // ✅ React Hook Form setup
   const {
     register,
     handleSubmit,
@@ -33,63 +23,48 @@ const PatientProfile = () => {
     formState: { errors, isDirty },
   } = useForm();
 
-  // ✅ Load data into form
+  // Load data into form when fetched
   useEffect(() => {
-    if (userData?.data.user) {
-      // Combine user data with medical data
-      const combinedData = {
-        ...userData.data.user,
-        ...dummyMedicalData
-      };
-      
+    if (patientData?.data) {
+      const patient = patientData.data;
       reset({
-        bloodGroup: combinedData.bloodGroup || "",
-        allergies: combinedData.allergies || [],
-        emergencyContact: combinedData.emergencyContact || {
-          name: "",
-          phone: "",
-          relation: "",
+        bloodGroup: patient.bloodGroup || "",
+        allergies: patient.allergies || [],
+        emergencyContact: {
+          name: patient.emergencyContact?.name || "",
+          phone: patient.emergencyContact?.phone || "",
+          relation: patient.emergencyContact?.relation || "",
         },
       });
     }
-  }, [userData, reset]);
+  }, [patientData, reset]);
 
-  // ✅ Form submit
+  // Form submit handler
   const onSubmit = async (data) => {
     try {
-      console.log("Updated Patient Profile:", data);
+      const response = await updateProfile(data).unwrap();
       
-      // Dummy success simulation
-      setTimeout(() => {
-        alert("Profile updated successfully!");
+      if (response.success) {
+        toast.success("Profile updated successfully!");
         setIsEditing(false);
-        
-        // Update medical data with new values
-        dummyMedicalData.bloodGroup = data.bloodGroup;
-        dummyMedicalData.allergies = data.allergies;
-        dummyMedicalData.emergencyContact = data.emergencyContact;
-      }, 1000);
-      
+        refetch(); // Refresh data
+      }
     } catch (error) {
       console.error("Update failed:", error);
-      alert("Update failed. Please try again.");
+      toast.error(error?.data?.message || "Failed to update profile");
     }
   };
 
   const handleCancel = () => {
-    // Reset form with current data
-    if (userData?.data.user) {
-      const combinedData = {
-        ...userData.data.user,
-        ...dummyMedicalData
-      };
+    if (patientData?.data) {
+      const patient = patientData.data;
       reset({
-        bloodGroup: combinedData.bloodGroup || "",
-        allergies: combinedData.allergies || [],
-        emergencyContact: combinedData.emergencyContact || {
-          name: "",
-          phone: "",
-          relation: "",
+        bloodGroup: patient.bloodGroup || "",
+        allergies: patient.allergies || [],
+        emergencyContact: {
+          name: patient.emergencyContact?.name || "",
+          phone: patient.emergencyContact?.phone || "",
+          relation: patient.emergencyContact?.relation || "",
         },
       });
     }
@@ -98,49 +73,51 @@ const PatientProfile = () => {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg">Loading profile...</div>
+      <div className="flex justify-center items-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading profile...</p>
+        </div>
       </div>
     );
   }
 
   if (isError) {
-    console.log("Using dummy data due to API error");
-    // Continue with dummy data instead of showing error
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="text-center">
+          <svg className="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-red-600 text-lg mb-4">Failed to load profile</p>
+          <button 
+            onClick={() => refetch()}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-all"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
   }
 
-  // ✅ Combine user data with medical data for display
-  const patientData = userData?.data.user ? {
-    ...userData.data.user,
-    ...dummyMedicalData
-  } : {
-    // Fallback to complete dummy data if no API data
-    userId: {
-      name: "John Doe",
-      email: "john.doe@example.com",
-      phone: "+1 (555) 123-4567",
-      address: "123 Main Street, New York, NY 10001",
-      dateOfBirth: "1985-06-15",
-      gender: "Male",
-      profileImage: ""
-    },
-    ...dummyMedicalData
-  };
+  const patient = patientData?.data;
 
   return (
-    <div className="max-w-5xl mx-auto py-6 sm:px-6 lg:px-8">
-      <div className="px-4 py-6 sm:px-0">
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <ProfileHeader 
           isEditing={isEditing}
           setIsEditing={setIsEditing}
-          patientData={patientData}
+          patientData={patient}
+          onCancel={handleCancel}
         />
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <div className="mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Personal Information - READ ONLY */}
             <div className="lg:col-span-2">
-              <PersonalInfo patientData={patientData} />
+              <PersonalInfo patientData={patient} />
             </div>
 
             {/* Medical Information + Emergency Contact - EDITABLE */}
@@ -150,37 +127,54 @@ const PatientProfile = () => {
                 register={register}
                 control={control}
                 errors={errors}
-                patientData={patientData}
+                patientData={patient}
               />
               
               <EmergencyContact
                 isEditing={isEditing}
                 register={register}
                 errors={errors}
-                patientData={patientData}
+                patientData={patient}
               />
             </div>
           </div>
 
-          {/* Save Button */}
+          {/* Save/Cancel Buttons */}
           {isEditing && (
-            <div className="mt-6 flex justify-end space-x-4">
+            <div className="mt-6 flex justify-end space-x-4 bg-white p-4 rounded-lg shadow-md">
               <button
                 type="button"
                 onClick={handleCancel}
-                className="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-200 transition duration-200"
+                disabled={isUpdating}
+                className="bg-gray-100 text-gray-700 px-8 py-3 rounded-lg font-medium hover:bg-gray-200 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
-                type="submit"
-                className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition duration-200"
+                onClick={handleSubmit(onSubmit)}
+                disabled={isUpdating || !isDirty}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center shadow-lg"
               >
-                Save Changes
+                {isUpdating ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Save Changes
+                  </>
+                )}
               </button>
             </div>
           )}
-        </form>
+        </div>
       </div>
     </div>
   );

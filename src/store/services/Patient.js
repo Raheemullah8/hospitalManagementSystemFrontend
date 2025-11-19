@@ -1,9 +1,6 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
-/**
- * Defines the Patient API service using RTK Query.
- * This handles endpoints related to the authenticated patient's own profile management.
- */
+
 export const PatientApi = createApi({
     reducerPath: "PatientApi",
     
@@ -13,33 +10,24 @@ export const PatientApi = createApi({
         credentials: "include",
     }),
     
-    // Tag types for caching
+  
     tagTypes: ["PatientProfile", "AllPatients"],
     
     endpoints: (builder) => ({
-
-        // --- PATIENT SELF-MANAGEMENT ENDPOINTS ---
-        
-        /**
-         * Get the authenticated patient's profile data.
-         * Corresponds to: GET /patients/profile
-         */
+      
         getPatientProfile: builder.query({
             query: () => "/profile",
             providesTags: ["PatientProfile"],
         }),
 
-        /**
-         * Update the authenticated patient's profile data.
-         * Corresponds to: PUT /patients/profile
-         */
+       
         updatePatientProfile: builder.mutation({
             query: (data) => ({
                 url: "/profile",
                 method: "PUT",
                 body: data,
             }),
-            // Invalidate the profile cache after a successful update
+            
             invalidatesTags: ["PatientProfile"],
         }),
 

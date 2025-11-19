@@ -301,7 +301,7 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* System Status */}
+        {/* System Status np*/}
         <div className="mt-6 bg-white rounded-lg shadow-lg p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">System Health Status</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
